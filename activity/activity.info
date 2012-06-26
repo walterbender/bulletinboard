@@ -1,0 +1,8 @@
+[Activity]
+name = BBoard
+activity_version = 1
+license = GPLv3
+bundle_id = org.sugarlabs.BBoardActivity
+exec = sugar-activity BBoardActivity.BBoardActivity
+icon = activity-bboard
+show_launcher = yes
