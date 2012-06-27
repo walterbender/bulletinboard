@@ -65,12 +65,7 @@ def _get_dmi(node):
 
 def get_path(activity, subpath):
     """ Find a Rainbow-approved place for temporary files. """
-    try:
-        return(os.path.join(activity.get_activity_root(), subpath))
-    except:
-        # Early versions of Sugar didn't support get_activity_root()
-        return(os.path.join(os.environ['HOME'], ".sugar/default",
-                            "org.sugarlabs.PortfolioActivity", subpath))
+    return(os.path.join(activity.get_activity_root(), subpath))
 
 
 def _luminance(color):
@@ -127,22 +122,35 @@ def load_svg_from_file(file_path, width, height):
     return gtk.gdk.pixbuf_new_from_file_at_size(file_path, width, height)
 
 
-def image_to_base64(pixbuf, path_name):
-    """ Convert an image to base64-encoded data """
-    file_name = os.path.join(path_name, 'imagetmp.png')
+def pixbuf_to_base64(activity, pixbuf):
+    ''' Convert pixbuf to base64-encoded data '''
+    png_file = os.path.join(get_path(activity, 'instance'), 'imagetmp.png')
     if pixbuf != None:
-        pixbuf.save(file_name, "png")
-    return file_to_base64(file_name, path_name)
-
-
-def file_to_base64(file_name, path_name):
-    base64 = os.path.join(path_name, 'base64tmp')
-    cmd = "base64 <" + file_name + " >" + base64
+        pixbuf.save(png_file, "png")
+    base64 = os.path.join(get_path(activity, 'instance'), 'base64tmp')
+    cmd = 'base64 <' + png_file + ' >' + base64
     subprocess.check_call(cmd, shell=True)
     file_handle = open(base64, 'r')
     data = file_handle.read()
     file_handle.close()
+    os.remove(base64)
+    os.remove(png_file)
     return data
+
+
+def base64_to_pixbuf(activity, data, width=300, height=225):
+    ''' Convert base64-encoded data to a pixbuf '''
+    base64 = os.path.join(get_path(activity, 'instance'), 'base64tmp')
+    file_handle = open(base64, 'w')
+    file_handle.write(data)
+    file_handle.close()
+    png_file = os.path.join(get_path(activity, 'instance'), 'imagetmp.png')
+    cmd = 'base64 -d <' + base64 + '>' + png_file
+    subprocess.check_call(cmd, shell=True)
+    pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(png_file, width, height)
+    os.remove(base64)
+    os.remove(png_file)
+    return pixbuf
 
 
 def get_pixbuf_from_journal(dsobject, w, h):
