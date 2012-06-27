@@ -424,7 +424,7 @@ class BBoardActivity(activity.Activity):
             tmp_file = save_pdf(self, self._buddies,
                                 description=self.metadata['description'])
         else:
-            tmp_file = save_pdf(self, profile.get_nick_name())
+            tmp_file = save_pdf(self, self._buddies)
         _logger.debug('copying PDF file to Journal...')
         dsobject = datastore.create()
         dsobject.metadata['title'] = profile.get_nick_name() + ' ' + \
@@ -976,7 +976,7 @@ class BBoardActivity(activity.Activity):
         if self._alert is not None:
             self.remove_alert(self._alert)
             self._alert = None
-        self._notify(msg=_('finished sharing'))
+        _logger.debug('finished sharing')
 
     def _send_event(self, text):
         ''' Send event through the tube. '''
