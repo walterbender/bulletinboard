@@ -132,7 +132,7 @@ class BBoardActivity(activity.Activity):
         self.slides = []
         self._setup_workspace()
 
-        self.buddies = []
+        self._buddies = [profile.get_nick_name()]
         self._setup_presence_service()
 
         self._thumbs = []
@@ -421,7 +421,7 @@ class BBoardActivity(activity.Activity):
         ''' Export an PDF version of the slideshow to the Journal. '''
         _logger.debug('saving to PDF...')
         if 'description' in self.metadata:
-            tmp_file = save_pdf(self, self.buddies,
+            tmp_file = save_pdf(self, self._buddies,
                                 description=self.metadata['description'])
         else:
             tmp_file = save_pdf(self, profile.get_nick_name())
@@ -819,6 +819,7 @@ class BBoardActivity(activity.Activity):
 
     def _dump(self, slide):
         ''' Dump data for sharing.'''
+        _logger.debug('dumping %s' % (slide.uid))
         data = [slide.uid, slide.colors, slide.title,
                 pixbuf_to_base64(activity, slide.pixbuf), slide.desc]
         return self._data_dumper(data)
@@ -836,14 +837,16 @@ class BBoardActivity(activity.Activity):
         slide = self._data_loader(data)
         if len(slide) == 5:
             if not self._slide_search(slide[0]):
+                _logger.debug('loading %s' % (slide[0]))
                 self.slides.append(Slide(
                         False, slide[0], slide[1], slide[2],
                         base64_to_pixbuf(activity, slide[3]), slide[4]))
 
     def _slide_search(self, uid):
         ''' Is this slide in the list already? '''
-        for s in self.slides:
-            if s.uid == uid:
+        for slide in self.slides:
+            if slide.uid == uid:
+                _logger.debug('skipping %s' % (slide.uid))
                 return True
         return False
 
@@ -863,7 +866,7 @@ class BBoardActivity(activity.Activity):
 
         owner = self.pservice.get_owner()
         self.owner = owner
-        self.buddies.append(self.owner)
+        self.buddies = [owner]
         self._share = ''
         self.connect('shared', self._shared_cb)
         self.connect('joined', self._joined_cb)
@@ -953,18 +956,27 @@ class BBoardActivity(activity.Activity):
         elif text[0] == 'j':  # Someone new has joined
             e, buddy = text.split(':')
             self._notify(title=_('%s has joined') % (buddy), msg=_('sharing'))
-            if buddy not in self.buddies:
-                self.buddies.append(buddy)
+            if buddy not in self._buddies:
+                self._buddies.append(buddy)
             if self.initiating:
                 self._send_event('J:%s' % (profile.get_nick_name()))
+                self._share_slides()
         elif text[0] == 'J':  # Everyone must share
             e, buddy = text.split(':')
-            if buddy not in self.buddies:
-                self.buddies.append(buddy)
-            for s in self.slides:
-                if s.owner:  # Maybe stagger the timing of the sends?
-                    self._send_event('s:' + str(self._dump(s)))
-            self._notify(msg=_('finished sharing'))
+            if buddy not in self._buddies:
+                self._buddies.append(buddy)
+                self._notify(title=_('%s has joined') % (buddy),
+                             msg=_('sharing'))
+            self._share_slides()
+
+    def _share_slides(self):
+        for s in self.slides:
+            if s.owner:  # Maybe stagger the timing of the sends?
+                self._send_event('s:' + str(self._dump(s)))
+        if self._alert is not None:
+            self.remove_alert(self._alert)
+            self._alert = None
+        self._notify(msg=_('finished sharing'))
 
     def _send_event(self, text):
         ''' Send event through the tube. '''

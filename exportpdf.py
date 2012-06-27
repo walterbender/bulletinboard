@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-#Copyright (c) 2011 Walter Bender
+#Copyright (c) 2011, 2012 Walter Bender
 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -49,7 +49,7 @@ def save_pdf(activity,  nicks, description=None):
     y = TOP_MARGIN
     for nick in nicks:
         show_text(cr, fd, nick, HEAD, LEFT_MARGIN, y)
-        y += HEAD
+        y += int(HEAD * 1.5)
 
     show_text(cr, fd, time.strftime('%x', time.localtime()),
               BODY, LEFT_MARGIN, y + 3 * HEAD)
@@ -59,7 +59,7 @@ def save_pdf(activity,  nicks, description=None):
 
     for i, slide in enumerate(activity.slides):
         if slide.title is not None:
-            show_text(cr, fd, slide.metadata['title'], HEAD, LEFT_MARGIN,
+            show_text(cr, fd, slide.title, HEAD, LEFT_MARGIN,
                       TOP_MARGIN)
         else:
             show_text(cr, fd, _('untitled'), HEAD, LEFT_MARGIN, TOP_MARGIN)
