@@ -33,10 +33,10 @@ LEFT_MARGIN = 10
 TOP_MARGIN = 20
 
 
-def save_pdf(activity,  nick):
+def save_pdf(activity,  nicks, description=None):
     ''' Output a PDF document from the title, pictures, and descriptions '''
 
-    if len(activity.dsobjects) == 0:
+    if len(activity.slides) == 0:
         return None
 
     tmp_file = os.path.join(activity.datapath, 'output.pdf') 
@@ -46,47 +46,36 @@ def save_pdf(activity,  nick):
     cr = cairo.Context(pdf_surface)
     cr.set_source_rgb(0, 0, 0)
 
-    show_text(cr, fd, nick, HEAD, LEFT_MARGIN, TOP_MARGIN)
+    y = TOP_MARGIN
+    for nick in nicks:
+        show_text(cr, fd, nick, HEAD, LEFT_MARGIN, y)
+        y += HEAD
+
     show_text(cr, fd, time.strftime('%x', time.localtime()),
-              BODY, LEFT_MARGIN, TOP_MARGIN + 3 * HEAD)
+              BODY, LEFT_MARGIN, y + 3 * HEAD)
+    if description is not None:
+        show_text(cr, fd, description, BODY, LEFT_MARGIN, y + 4 * HEAD)
     cr.show_page()
 
-    for i, dsobj in enumerate(activity.dsobjects):
-        if dsobj.metadata['keep'] == '0':
-            continue
-        if 'title' in dsobj.metadata:
-            show_text(cr, fd, dsobj.metadata['title'], HEAD, LEFT_MARGIN,
+    for i, slide in enumerate(activity.slides):
+        if slide.title is not None:
+            show_text(cr, fd, slide.metadata['title'], HEAD, LEFT_MARGIN,
                       TOP_MARGIN)
         else:
-            show_text(cr, fd, _('untitled'), HEAD, LEFT_MARGIN,
-                      TOP_MARGIN)
+            show_text(cr, fd, _('untitled'), HEAD, LEFT_MARGIN, TOP_MARGIN)
 
-        try:
-            w = int(PAGE_WIDTH - LEFT_MARGIN * 2)
-            h = int(w * 3 / 4)
-            pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(dsobj.file_path,
-                                                          w, h)
-        except(GError, IOError):
-            try:
-                w = 300
-                h = 225
-                pixbuf = get_pixbuf_from_journal(dsobj, w, h)
-            except(GError, IOError):
-                w = 0
-                h = 0
-                pixbuf = None
-
-        if pixbuf is not None:
+        w = 300
+        h = 225
+        if slide.pixbuf is not None:
             cr.save()
             cr = gtk.gdk.CairoContext(cr)
-            cr.set_source_pixbuf(pixbuf, LEFT_MARGIN, TOP_MARGIN + 150)
+            cr.set_source_pixbuf(slide.pixbuf, LEFT_MARGIN, TOP_MARGIN + 150)
             cr.rectangle(LEFT_MARGIN, TOP_MARGIN + 150, w, h)
             cr.fill()
             cr.restore()
 
-        if 'description' in dsobj.metadata:
-            show_text(cr, fd, dsobj.metadata['description'], BODY,
-                      LEFT_MARGIN, h + 175)
+        if slide.desc is not None:
+            show_text(cr, fd, slide.desc, BODY, LEFT_MARGIN, h + 175)
         cr.show_page()
 
     return tmp_file
