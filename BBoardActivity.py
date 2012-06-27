@@ -345,6 +345,11 @@ class BBoardActivity(activity.Activity):
 
         self._palette.set_content(msg_box)
 
+        separator_factory(self.toolbar)
+
+        button_factory('system-restart', self.toolbar, self._resend_cb,
+                       tooltip=_('Refresh'))
+
         label_factory(record_toolbar, _('Record a sound') + ':')
         self._record_button = button_factory(
             'media-record', record_toolbar,
@@ -547,9 +552,12 @@ class BBoardActivity(activity.Activity):
             x_off = int((self._width - n * w) / 2)
             x = x_off
             y = 0
+            if len(self.slides) > len(self._thumbs):
+                rescale = True
+            else:
+                rescale = False
             for i in range(len(self.slides)):
-                self.i = i
-                self._show_thumb(x, y, w, h)
+                self._show_thumb(i, x, y, w, h, rescale)
                 x += w
                 if x + w > self._width:
                     x = x_off
@@ -557,25 +565,27 @@ class BBoardActivity(activity.Activity):
             self.i = 0  # Reset position in slideshow to the beginning
         return False
 
-    def _show_thumb(self, x, y, w, h):
+    def _show_thumb(self, i, x, y, w, h, rescale):
         ''' Display a preview image and title as a thumbnail. '''
-
-        if len(self._thumbs) < self.i + 1:
-            # Create a Sprite for this thumbnail
-            pixbuf = self.slides[self.i].pixbuf
+        if rescale:
+            pixbuf = self.slides[i].pixbuf
             if pixbuf is not None:
-                pixbuf_thumb = pixbuf.scale_simple(int(w), int(h),
-                                                   gtk.gdk.INTERP_TILES)
+                pixbuf_thumb = pixbuf.scale_simple(
+                    int(w), int(h), gtk.gdk.INTERP_TILES)
             else:
-                pixbuf_thumb = svg_str_to_pixbuf(genblank(
-                        int(w), int(h), self.slides[self.i].colors))
+                pixbuf_thumb = svg_str_to_pixbuf(
+                    genblank(int(w), int(h), self.slides[i].colors))
+        if len(self._thumbs) < i + 1:
+            # Create a Sprite for this thumbnail
             self._thumbs.append([Sprite(self._sprites, x, y, pixbuf_thumb),
-                                     x, y, self.i])
-            self._thumbs[-1][0].set_image(svg_str_to_pixbuf(
-                    svg_rectangle(int(w), int(h),
-                                  self.slides[self.i].colors)), i=1)
-            self._thumbs[-1][0].set_label(str(self.i + 1))
-        self._thumbs[self.i][0].set_layer(TOP)
+                                     x, y, i])
+            self._thumbs[i][0].set_label(str(i + 1))
+        elif rescale:
+            self._thumbs[i][0].set_image(pixbuf)
+        self._thumbs[i][0].set_image(
+            svg_str_to_pixbuf(svg_rectangle(int(w), int(h),
+                                            self.slides[i].colors)), i=1)
+        self._thumbs[i][0].set_layer(TOP)
 
     def _expose_cb(self, win, event):
         ''' Callback to handle window expose events '''
@@ -815,6 +825,11 @@ class BBoardActivity(activity.Activity):
         self.add_alert(self._alert)
         self._alert.show()
 
+    def _resend_cb(self, button=None):
+        ''' Resend slides, but only of sharing '''
+        if hasattr(self, 'chattube') and self.chattube is not None:
+            self._share_slides()
+
     # Serialize
 
     def _dump(self, slide):
@@ -955,7 +970,7 @@ class BBoardActivity(activity.Activity):
             self._load(data)
         elif text[0] == 'j':  # Someone new has joined
             e, buddy = text.split(':')
-            self._notify(title=_('%s has joined') % (buddy), msg=_('sharing'))
+            _logger.debug('%s has joined' % (buddy))
             if buddy not in self._buddies:
                 self._buddies.append(buddy)
             if self.initiating:
@@ -963,19 +978,16 @@ class BBoardActivity(activity.Activity):
                 self._share_slides()
         elif text[0] == 'J':  # Everyone must share
             e, buddy = text.split(':')
+            self.waiting = False
             if buddy not in self._buddies:
                 self._buddies.append(buddy)
-                self._notify(title=_('%s has joined') % (buddy),
-                             msg=_('sharing'))
+                _logger.debug('%s has joined' % (buddy))
             self._share_slides()
 
     def _share_slides(self):
         for s in self.slides:
             if s.owner:  # Maybe stagger the timing of the sends?
                 self._send_event('s:' + str(self._dump(s)))
-        if self._alert is not None:
-            self.remove_alert(self._alert)
-            self._alert = None
         _logger.debug('finished sharing')
 
     def _send_event(self, text):
