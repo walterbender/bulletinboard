@@ -44,6 +44,7 @@ from sugar.presence.tubeconn import TubeConnection
 
 SERVICE = 'org.sugarlabs.BBoardActivity'
 IFACE = SERVICE
+PATH = '/org/sugarlabs/BBoardActivity'
 
 try:
     _OLD_SUGAR_SYSTEM = False
@@ -63,7 +64,7 @@ from sprites import Sprites, Sprite
 from exportpdf import save_pdf
 from utils import get_path, lighter_color, svg_str_to_pixbuf, \
     play_audio_from_file, get_pixbuf_from_journal, genblank, get_hardware, \
-    svg_rectangle
+    svg_rectangle, pixbuf_to_base64, base64_to_pixbuf
 from toolbar_utils import radio_factory, \
     button_factory, separator_factory, combo_factory, label_factory
 from grecord import Grecord
@@ -220,30 +221,22 @@ class BBoardActivity(activity.Activity):
                 int(PREVIEWW * self._scale), int(PREVIEWH * self._scale)))
         self._help.hide()
 
-        self._title = Sprite(self._sprites, 0, 0, svg_str_to_pixbuf(
-                genblank(self._width, int(TITLEH * self._scale),
-                          self.colors)))
+        self._genblanks(self.colors)
+
+        self._title = Sprite(self._sprites, 0, 0, self._title_pixbuf)
         self._title.set_label_attributes(int(titlef * self._scale),
                                          rescale=False)
         self._preview = Sprite(self._sprites,
             int((self._width - int(PREVIEWW * self._scale)) / 2),
-            int(PREVIEWY * self._scale), svg_str_to_pixbuf(genblank(
-                    int(PREVIEWW * self._scale), int(PREVIEWH * self._scale),
-                    self.colors)))
+            int(PREVIEWY * self._scale), self._preview_pixbuf)
 
         self._description = Sprite(self._sprites,
                                    int(DESCRIPTIONX * self._scale),
                                    int(DESCRIPTIONY * self._scale),
-                                   svg_str_to_pixbuf(
-                genblank(int(self._width - (2 * DESCRIPTIONX * self._scale)),
-                          int(DESCRIPTIONH * self._scale),
-                          self.colors)))
+                                   self._desc_pixbuf)
         self._description.set_label_attributes(int(descriptionf * self._scale))
 
-        self._my_canvas = Sprite(
-            self._sprites, 0, 0, svg_str_to_pixbuf(genblank(
-                    self._width, self._height, (self.colors[0],
-                                                self.colors[0]))))
+        self._my_canvas = Sprite(self._sprites, 0, 0, self._canvas_pixbuf)
         self._my_canvas.set_layer(BOTTOM)
 
         self._clear_screen()
@@ -253,6 +246,19 @@ class BBoardActivity(activity.Activity):
 
         self._playing = False
         self._rate = 10
+
+    def _genblanks(self, colors):
+        ''' Need to cache these '''
+        self._title_pixbuf = svg_str_to_pixbuf(
+            genblank(self._width, int(TITLEH * self._scale), colors))
+        self._preview_pixbuf = svg_str_to_pixbuf(
+            genblank(int(PREVIEWW * self._scale), int(PREVIEWH * self._scale),
+                     colors))
+        self._desc_pixbuf = svg_str_to_pixbuf(
+            genblank(int(self._width - (2 * DESCRIPTIONX * self._scale)),
+                     int(DESCRIPTIONH * self._scale), colors))
+        self._canvas_pixbuf = svg_str_to_pixbuf(
+            genblank(self._width, self._height, (colors[0], colors[0])))
 
     def _setup_toolbars(self):
         ''' Setup the toolbars. '''
@@ -414,8 +420,11 @@ class BBoardActivity(activity.Activity):
     def _save_as_pdf_cb(self, button=None):
         ''' Export an PDF version of the slideshow to the Journal. '''
         _logger.debug('saving to PDF...')
-        tmp_file = save_pdf(self, profile.get_nick_name())
-
+        if 'description' in self.metadata:
+            tmp_file = save_pdf(self, self.buddies,
+                                description=self.metadata['description'])
+        else:
+            tmp_file = save_pdf(self, profile.get_nick_name())
         _logger.debug('copying PDF file to Journal...')
         dsobject = datastore.create()
         dsobject.metadata['title'] = profile.get_nick_name() + ' ' + \
@@ -445,11 +454,20 @@ class BBoardActivity(activity.Activity):
         self._total_drag = [0, 0]
         self.last_spr_moved = None
 
+    def _update_colors(self):
+        ''' Match the colors to those of the slide originator. '''
+        self._genblanks(self.slides[self.i].colors)
+        self._title.set_image(self._title_pixbuf)
+        self._preview.set_image(self._preview_pixbuf)
+        self._description.set_image(self._desc_pixbuf)
+        self._my_canvas.set_image(self._canvas_pixbuf)
+
     def _show_slide(self, direction=1):
         ''' Display a title, preview image, and decription for slide
         i. Play an audio note if there is one recorded for this
         object. '''
         self._clear_screen()
+        self._update_colors()
 
         if len(self.slides) == 0:
             self._prev_button.set_icon('go-previous-inactive')
@@ -459,12 +477,6 @@ class BBoardActivity(activity.Activity):
             self._help.set_layer(TOP)
             self._description.set_layer(MIDDLE)
             return
-
-        self.i += direction
-        if self.i < 0:
-            self.i = len(self.slides) - 1
-        elif self.i > len(self.slides) - 1:
-            self.i = 0
 
         if self.i == 0:
             self._prev_button.set_icon('go-previous-inactive')
@@ -490,7 +502,7 @@ class BBoardActivity(activity.Activity):
         self._title.set_label(self.slides[self.i].title)
         self._title.set_layer(MIDDLE)
 
-        if 'description' in self.dsobjects[self.i].metadata:
+        if self.slides[self.i].desc is not None:
             self._description.set_label(self.slides[self.i].desc)
             self._description.set_layer(MIDDLE)
             text_buffer = gtk.TextBuffer()
@@ -555,12 +567,13 @@ class BBoardActivity(activity.Activity):
                 pixbuf_thumb = pixbuf.scale_simple(int(w), int(h),
                                                    gtk.gdk.INTERP_TILES)
             else:
-                pixbuf_thumb = svg_str_to_pixbuf(genblank(int(w), int(h),
-                                                          self.colors))
+                pixbuf_thumb = svg_str_to_pixbuf(genblank(
+                        int(w), int(h), self.slides[self.i].colors))
             self._thumbs.append([Sprite(self._sprites, x, y, pixbuf_thumb),
                                      x, y, self.i])
             self._thumbs[-1][0].set_image(svg_str_to_pixbuf(
-                    svg_rectangle(int(w), int(h), self.colors)), i=1)
+                    svg_rectangle(int(w), int(h),
+                                  self.slides[self.i].colors)), i=1)
             self._thumbs[-1][0].set_label(str(self.i + 1))
         self._thumbs[self.i][0].set_layer(TOP)
 
@@ -674,9 +687,9 @@ class BBoardActivity(activity.Activity):
                     j = self._spr_to_thumb(self._release)
                     self._thumbs[i][0] = self._release
                     self._thumbs[j][0] = self._press
-                    tmp = self.dsobjects[i]
-                    self.dsobjects[i] = self.dsobjects[j]
-                    self.dsobjects[j] = tmp
+                    tmp = self.slides[i]
+                    self.slides[i] = self.slides[j]
+                    self.slides[j] = tmp
                     self._thumbs[j][0].move((self._thumbs[j][1],
                                              self._thumbs[j][2]))
             self._thumbs[i][0].move((self._thumbs[i][1], self._thumbs[i][2]))
@@ -713,7 +726,7 @@ class BBoardActivity(activity.Activity):
             if self._search_for_audio_note(
                 self.dsobjects[self.i].object_id) is None:
                 _logger.debug('Autosaving recording')
-                self._notify_successful_save(title=_('Save recording'))
+                self._notify(title=_('Save recording'))
                 gobject.timeout_add(100, self._wait_for_transcoding_to_finish)
             else:
                 _logger.debug('Waiting for manual save.')
@@ -794,7 +807,7 @@ class BBoardActivity(activity.Activity):
     def datastore_write_error_cb(self, error):
         _logger.error('datastore_write_error_cb: %r' % error)
 
-    def _notify_successful_save(self, title='', msg=''):
+    def _notify(self, title='', msg=''):
         ''' Notify user when saves are completed '''
         self._alert = Alert()
         self._alert.props.title = title
@@ -806,9 +819,8 @@ class BBoardActivity(activity.Activity):
 
     def _dump(self, slide):
         ''' Dump data for sharing.'''
-        data = []
-        data.append(slide.uid, slide.colors, slide.title, slide.desc,
-                    slide.pixbuf)
+        data = [slide.uid, slide.colors, slide.title,
+                pixbuf_to_base64(activity, slide.pixbuf), slide.desc]
         return self._data_dumper(data)
 
     def _data_dumper(self, data):
@@ -824,8 +836,9 @@ class BBoardActivity(activity.Activity):
         slide = self._data_loader(data)
         if len(slide) == 5:
             if not self._slide_search(slide[0]):
-                self.slides.append(Slide(False, slide[0], slide[1], slide[2],
-                                         slide[4], slide[3]))
+                self.slides.append(Slide(
+                        False, slide[0], slide[1], slide[2],
+                        base64_to_pixbuf(activity, slide[3]), slide[4]))
 
     def _slide_search(self, uid):
         ''' Is this slide in the list already? '''
@@ -929,22 +942,35 @@ class BBoardActivity(activity.Activity):
                 self.event_received_cb)
 
             if self.waiting:
-                self._send_event('j')
+                self._send_event('j:%s' % (profile.get_nick_name()))
 
     def event_received_cb(self, text):
         ''' Data is passed as tuples: cmd:text '''
+        _logger.debug('<<< %s' % (text[0]))
         if text[0] == 's':  # shared journal objects
             e, data = text.split(':')
             self._load(data)
-        elif text[0] == 'j':  # Someone new has joined, so everyone must share
+        elif text[0] == 'j':  # Someone new has joined
+            e, buddy = text.split(':')
+            self._notify(title=_('%s has joined') % (buddy), msg=_('sharing'))
+            if buddy not in self.buddies:
+                self.buddies.append(buddy)
+            if self.initiating:
+                self._send_event('J:%s' % (profile.get_nick_name()))
+        elif text[0] == 'J':  # Everyone must share
+            e, buddy = text.split(':')
+            if buddy not in self.buddies:
+                self.buddies.append(buddy)
             for s in self.slides:
                 if s.owner:  # Maybe stagger the timing of the sends?
                     self._send_event('s:' + str(self._dump(s)))
+            self._notify(msg=_('finished sharing'))
 
-    def _send_event(self, entry):
+    def _send_event(self, text):
         ''' Send event through the tube. '''
         if hasattr(self, 'chattube') and self.chattube is not None:
-            self.chattube.SendText(entry)
+            _logger.debug('>>> %s' % (text[0]))
+            self.chattube.SendText(text)
 
 
 class ChatTube(ExportedGObject):
