@@ -89,6 +89,7 @@ def svg_str_to_pixbuf(svg_string):
     pixbuf = pl.get_pixbuf()
     return pixbuf
 
+
 def svg_rectangle(width, height, colors):
     ''' Generate a rectangle frame in two colors '''
     svg = SVG()
@@ -106,9 +107,21 @@ def svg_rectangle(width, height, colors):
     svg_string += svg.footer()
     return svg_string
 
+
 def load_svg_from_file(file_path, width, height):
     '''Create a pixbuf from SVG in a file. '''
     return gtk.gdk.pixbuf_new_from_file_at_size(file_path, width, height)
+
+
+def file_to_base64(activity, path):
+    base64 = os.path.join(get_path(activity, 'instance'), 'base64tmp')
+    cmd = 'base64 <' + path + ' >' + base64
+    subprocess.check_call(cmd, shell=True)
+    file_handle = open(base64, 'r')
+    data = file_handle.read()
+    file_handle.close()
+    os.remove(base64)
+    return data
 
 
 def pixbuf_to_base64(activity, pixbuf):
@@ -116,28 +129,26 @@ def pixbuf_to_base64(activity, pixbuf):
     png_file = os.path.join(get_path(activity, 'instance'), 'imagetmp.png')
     if pixbuf != None:
         pixbuf.save(png_file, "png")
-    base64 = os.path.join(get_path(activity, 'instance'), 'base64tmp')
-    cmd = 'base64 <' + png_file + ' >' + base64
-    subprocess.check_call(cmd, shell=True)
-    file_handle = open(base64, 'r')
-    data = file_handle.read()
-    file_handle.close()
-    os.remove(base64)
+    data = file_to_base64(activity, png_file)
     os.remove(png_file)
     return data
 
 
-def base64_to_pixbuf(activity, data, width=300, height=225):
-    ''' Convert base64-encoded data to a pixbuf '''
+def base64_to_file(activity, data, path):
     base64 = os.path.join(get_path(activity, 'instance'), 'base64tmp')
     file_handle = open(base64, 'w')
     file_handle.write(data)
     file_handle.close()
-    png_file = os.path.join(get_path(activity, 'instance'), 'imagetmp.png')
-    cmd = 'base64 -d <' + base64 + '>' + png_file
+    cmd = 'base64 -d <' + base64 + '>' + path
     subprocess.check_call(cmd, shell=True)
-    pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(png_file, width, height)
     os.remove(base64)
+
+
+def base64_to_pixbuf(activity, data, width=300, height=225):
+    ''' Convert base64-encoded data to a pixbuf '''
+    png_file = os.path.join(get_path(activity, 'instance'), 'imagetmp.png')
+    base64_to_file(activity, data, png_file)
+    pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(png_file, width, height)
     os.remove(png_file)
     return pixbuf
 

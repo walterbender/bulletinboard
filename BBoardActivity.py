@@ -64,7 +64,8 @@ from sprites import Sprites, Sprite
 from exportpdf import save_pdf
 from utils import get_path, lighter_color, svg_str_to_pixbuf, \
     play_audio_from_file, get_pixbuf_from_journal, genblank, get_hardware, \
-    svg_rectangle, pixbuf_to_base64, base64_to_pixbuf
+    svg_rectangle, pixbuf_to_base64, base64_to_pixbuf, file_to_base64, \
+    base64_to_file
 from toolbar_utils import radio_factory, \
     button_factory, separator_factory, combo_factory, label_factory
 from grecord import Grecord
@@ -737,7 +738,7 @@ class BBoardActivity(activity.Activity):
     def _playback_recording_cb(self, button=None, nick=profile.get_nick_name()):
         ''' Play back current recording '''
         _logger.debug('Playback current recording from %s...' % (nick))
-        if nick in self._audio_recordings[nick]:
+        if nick in self._audio_recordings:
             play_audio_from_file(self._audio_recordings[nick])
         return
 
@@ -753,7 +754,7 @@ class BBoardActivity(activity.Activity):
     def _save_recording(self):
         if os.path.exists(os.path.join(self.datapath, 'output.ogg')):
             _logger.debug('Saving recording to Journal...')
-            obj_id = _get_audio_obj_id()
+            obj_id = self._get_audio_obj_id()
             copyfile(os.path.join(self.datapath, 'output.ogg'),
                      os.path.join(self.datapath, '%s.ogg' % (obj_id)))
             dsobject = self._search_for_audio_note(obj_id)
@@ -774,6 +775,8 @@ class BBoardActivity(activity.Activity):
             self._add_playback_button(
                 profile.get_nick_name(),
                 os.path.join(self.datapath, '%s.ogg' % (obj_id)))
+            if hasattr(self, 'chattube') and self.chattube is not None:
+                self._share_audio()
         else:
             _logger.debug('Nothing to save...')
         return
@@ -820,6 +823,7 @@ class BBoardActivity(activity.Activity):
         ''' Resend slides, but only of sharing '''
         if hasattr(self, 'chattube') and self.chattube is not None:
             self._share_slides()
+            self._share_audio()
 
     # Serialize
 
@@ -967,6 +971,7 @@ class BBoardActivity(activity.Activity):
             if self.initiating:
                 self._send_event('J:%s' % (profile.get_nick_name()))
                 self._share_slides()
+                self._share_audio()
         elif text[0] == 'J':  # Everyone must share
             e, buddy = text.split(':')
             self.waiting = False
@@ -974,6 +979,23 @@ class BBoardActivity(activity.Activity):
                 self._buddies.append(buddy)
                 _logger.debug('%s has joined' % (buddy))
             self._share_slides()
+            self._share_audio()
+        elif text[0] == 'a':  # audio recording
+            e, data = text.split(':')
+            nick, colors, base64 = self._data_loader(data)
+            path = os.path.join(activity.get_activity_root(),
+                                'instance', 'nick.ogg')
+            base64_to_file(activity, base64, path)
+            self._add_playback_button(nick, path)
+
+    def _share_audio(self):
+        if profile.get_nick_name() in self._audio_recordings:
+            base64 = file_to_base64(
+                    activity, self._audio_recordings[profile.get_nick_name()])
+            gobject.idle_add(self._send_event, 'a:' + str(
+                    self._data_dumper([profile.get_nick_name(),
+                                       self.colors,
+                                       base64])))
 
     def _share_slides(self):
         for s in self.slides:
