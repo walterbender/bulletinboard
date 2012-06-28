@@ -93,7 +93,6 @@ MAXY = 120
 
 # sprite layers
 DRAG = 6
-STAR = 5
 TOP = 4
 UNDRAG = 3
 MIDDLE = 2
@@ -123,6 +122,9 @@ class BBoardActivity(activity.Activity):
         self.datapath = get_path(activity, 'instance')
 
         self._hw = get_hardware()
+
+        self._playback_buttons = {}
+        self._audio_recordings = {}
 
         self._setup_toolbars()
         self._setup_canvas()
@@ -276,12 +278,12 @@ class BBoardActivity(activity.Activity):
             toolbox.show()
             self.toolbar = toolbox.toolbar
 
-            record_toolbar = gtk.Toolbar()
+            self.record_toolbar = gtk.Toolbar()
             record_toolbar_button = ToolbarButton(
                 label=_('Record a sound'),
-                page=record_toolbar,
+                page=self.record_toolbar,
                 icon_name='media-audio')
-            record_toolbar.show_all()
+            self.record_toolbar.show_all()
             record_toolbar_button.show()
         else:
             # Use pre-0.86 toolbar design
@@ -289,8 +291,8 @@ class BBoardActivity(activity.Activity):
             toolbox = activity.ActivityToolbox(self)
             self.set_toolbox(toolbox)
             toolbox.add_toolbar(_('Page'), primary_toolbar)
-            record_toolbar = gtk.Toolbar()
-            toolbox.add_toolbar(_('Record'), record_toolbar)
+            self.record_toolbar = gtk.Toolbar()
+            toolbox.add_toolbar(_('Record'), self.record_toolbar)
             toolbox.show()
             toolbox.set_current_toolbar(1)
             self.toolbar = primary_toolbar
@@ -348,20 +350,20 @@ class BBoardActivity(activity.Activity):
         button_factory('system-restart', self.toolbar, self._resend_cb,
                        tooltip=_('Refresh'))
 
-        label_factory(record_toolbar, _('Record a sound') + ':')
+        label_factory(self.record_toolbar, _('Record a sound') + ':')
         self._record_button = button_factory(
-            'media-record', record_toolbar,
+            'media-record', self.record_toolbar,
             self._record_cb, tooltip=_('Start recording'))
 
-        separator_factory(record_toolbar)
+        separator_factory(self.record_toolbar)
 
-        self._playback_button = button_factory(
-            'media-playback-start-insensitive',  record_toolbar,
-            self._playback_recording_cb, tooltip=_('Nothing to play'))
-
-        self._save_recording_button = button_factory(
-            'sound-save-insensitive', record_toolbar,
-            self._wait_for_transcoding_to_finish, tooltip=_('Nothing to save'))
+        # Look to see if we have audio previously recorded
+        obj_id = self._get_audio_obj_id()
+        dsobject = self._search_for_audio_note(obj_id)
+        if dsobject is not None:
+            _logger.debug('Found previously recorded audio')
+            self._add_playback_button(profile.get_nick_name(),
+                                      dsobject.file_path)
 
         if HAVE_TOOLBOX:
             separator_factory(activity_button_toolbar)
@@ -466,9 +468,7 @@ class BBoardActivity(activity.Activity):
         self._my_canvas.set_image(self._canvas_pixbuf)
 
     def _show_slide(self, direction=1):
-        ''' Display a title, preview image, and decription for slide
-        i. Play an audio note if there is one recorded for this
-        object. '''
+        ''' Display a title, preview image, and decription for slide. '''
         self._clear_screen()
         self._update_colors()
 
@@ -514,15 +514,14 @@ class BBoardActivity(activity.Activity):
             self._description.set_label('')
             self._description.hide()
 
-        audio_obj = self._search_for_audio_note(self.slides[self.i].uid)
-        if audio_obj is not None:
-            _logger.debug('Playing audio note')
-            gobject.idle_add(play_audio_from_file, audio_obj.file_path)
-            self._playback_button.set_icon('media-playback-start')
-            self._playback_button.set_tooltip(_('Play recording'))
-        else:
-            self._playback_button.set_icon('media-playback-start-insensitive')
-            self._playback_button.set_tooltip(_('Nothing to play'))
+    def _add_playback_button(self, nick, audio_file):
+        ''' Add a toolbar button for this audio recording '''
+        if nick not in self._playback_buttons:
+            self._playback_buttons[nick] = button_factory(
+                'xo-chat',  self.record_toolbar,
+                self._playback_recording_cb, cb_arg=nick,
+                tooltip=_('Audio recording from %s' % (nick)))
+        self._audio_recordings[nick] = audio_file
 
     def _slides_cb(self, button=None):
         if self._thumbnail_mode:
@@ -717,18 +716,9 @@ class BBoardActivity(activity.Activity):
             self._recording = False
             self._record_button.set_icon('media-record')
             self._record_button.set_tooltip(_('Start recording'))
-            self._playback_button.set_icon('media-playback-start')
-            self._playback_button.set_tooltip(_('Play recording'))
-            self._save_recording_button.set_icon('sound-save')
-            self._save_recording_button.set_tooltip(_('Save recording'))
-            # Autosave if there was not already a recording
-            if self._search_for_audio_note(
-                self.dsobjects[self.i].object_id) is None:
-                _logger.debug('Autosaving recording')
-                self._notify(title=_('Save recording'))
-                gobject.timeout_add(100, self._wait_for_transcoding_to_finish)
-            else:
-                _logger.debug('Waiting for manual save.')
+            _logger.debug('Autosaving recording')
+            self._notify(title=_('Save recording'))
+            gobject.timeout_add(100, self._wait_for_transcoding_to_finish)
         else:  # Wasn't recording, so start
             _logger.debug('recording...False. Start recording.')
             self._grecord.record_audio()
@@ -744,16 +734,26 @@ class BBoardActivity(activity.Activity):
             self._alert = None
         self._save_recording()
 
-    def _playback_recording_cb(self, button=None):
+    def _playback_recording_cb(self, button=None, nick=profile.get_nick_name()):
         ''' Play back current recording '''
-        _logger.debug('Playback current recording from output.ogg...')
-        play_audio_from_file(os.path.join(self.datapath, 'output.ogg'))
+        _logger.debug('Playback current recording from %s...' % (nick))
+        if nick in self._audio_recordings[nick]:
+            play_audio_from_file(self._audio_recordings[nick])
         return
+
+    def _get_audio_obj_id(self):
+        ''' Find unique name for audio object '''
+        if 'activity_id' in self.metadata:
+            obj_id = self.metadata['activity_id']
+        else:
+            obj_id = _('Bulletin Board')
+        _logger.debug(obj_id)
+        return obj_id
 
     def _save_recording(self):
         if os.path.exists(os.path.join(self.datapath, 'output.ogg')):
             _logger.debug('Saving recording to Journal...')
-            obj_id = self.dsobjects[self.i].object_id
+            obj_id = _get_audio_obj_id()
             copyfile(os.path.join(self.datapath, 'output.ogg'),
                      os.path.join(self.datapath, '%s.ogg' % (obj_id)))
             dsobject = self._search_for_audio_note(obj_id)
@@ -762,16 +762,18 @@ class BBoardActivity(activity.Activity):
             if dsobject is not None:
                 _logger.debug(self.dsobjects[self.i].metadata['title'])
                 dsobject.metadata['title'] = _('audio note for %s') % \
-                    (self.dsobjects[self.i].metadata['title'])
+                    (self.metadata['title'])
                 dsobject.metadata['icon-color'] = \
                     profile.get_color().to_string()
                 dsobject.metadata['tags'] = obj_id
                 dsobject.metadata['mime_type'] = 'audio/ogg'
                 dsobject.set_file_path(
                     os.path.join(self.datapath, '%s.ogg' % (obj_id)))
-                    # os.path.join(self.datapath, 'output.ogg'))
                 datastore.write(dsobject)
                 dsobject.destroy()
+            self._add_playback_button(
+                profile.get_nick_name(),
+                os.path.join(self.datapath, '%s.ogg' % (obj_id)))
         else:
             _logger.debug('Nothing to save...')
         return
