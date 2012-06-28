@@ -89,33 +89,22 @@ def svg_str_to_pixbuf(svg_string):
     pixbuf = pl.get_pixbuf()
     return pixbuf
 
-
 def svg_rectangle(width, height, colors):
     ''' Generate a rectangle frame in two colors '''
-    return \
-'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\
-<svg\
-   version="1.1"\
-   width="%f"\
-   height="%f">\
-    <g>\
-      <rect\
-         width="%f"\
-         height="%f"\
-         x="2.5"\
-         y="2.5"\
-         style="fill:none;stroke:%s;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />\
-      <rect\
-         width="%f"\
-         height="%f"\
-         x="7.5"\
-         y="7.5"\
-         style="fill:none;stroke:%s;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-opacity:1;stroke-dasharray:none" />\
-    </g>\
-</svg>' % (width, height,
-           width - 5, height - 5, colors[1],
-           width - 15, height - 15, colors[0])
-
+    svg = SVG()
+    svg.set_colors(colors)
+    svg.set_stroke_width(5.0)
+    svg_string = svg.header(width, height, background=False)
+    svg.set_colors([colors[1], 'none'])
+    width -= 5
+    height -= 5
+    svg_string += svg.svg_rect(width, height, 0, 0, 2.5, 2.5)
+    svg.set_colors([colors[0], 'none'])
+    width -= 10
+    height -= 10
+    svg_string += svg.svg_rect(width, height, 0, 0, 7.5, 7.5)
+    svg_string += svg.footer()
+    return svg_string
 
 def load_svg_from_file(file_path, width, height):
     '''Create a pixbuf from SVG in a file. '''
@@ -192,7 +181,7 @@ class SVG:
                                        self._stroke_width, ";", extras,
                                        "\" />\n")
 
-    def _svg_rect(self, w, h, rx, ry, x, y):
+    def svg_rect(self, w, h, rx, ry, x, y):
         svg_string = "       <rect\n"
         svg_string += "          width=\"%f\"\n" % (w)
         svg_string += "          height=\"%f\"\n" % (h)
@@ -205,8 +194,8 @@ class SVG:
         return svg_string
 
     def _background(self, w=80, h=60, scale=1):
-        return self._svg_rect((w - 0.5) * scale, (h - 0.5) * scale,
-                              1, 1, 0.25, 0.25)
+        return self.svg_rect((w - 0.5) * scale, (h - 0.5) * scale,
+                             1, 1, 0.25, 0.25)
 
     def header(self, w=80, h=60, scale=1, background=True):
         svg_string = "<?xml version=\"1.0\" encoding=\"UTF-8\""
