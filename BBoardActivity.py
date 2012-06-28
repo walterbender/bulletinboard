@@ -390,7 +390,7 @@ class BBoardActivity(activity.Activity):
                                     state=self._palette.SECONDARY)
             else:
                 self._palette.popdown(immediate=True)
-            return 
+            return
 
     def _text_view_focus_out_event_cb(self, widget, event):
         buffer = self._text_view.get_buffer()
@@ -571,7 +571,6 @@ class BBoardActivity(activity.Activity):
         # Create a Sprite for this thumbnail
         self._thumbs.append([Sprite(self._sprites, x, y, pixbuf_thumb),
                              x, y, i])
-        self._thumbs[i][0].set_label(str(i + 1))
         self._thumbs[i][0].set_image(
             svg_str_to_pixbuf(svg_rectangle(int(w), int(h),
                                             self.slides[i].colors)), i=1)
