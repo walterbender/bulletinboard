@@ -157,7 +157,8 @@ def get_pixbuf_from_journal(dsobject, w, h):
     """ Load a pixbuf from a Journal object. """
     pixbufloader = \
         gtk.gdk.pixbuf_loader_new_with_mime_type('image/png')
-    pixbufloader.set_size(min(300, int(w)), min(225, int(h)))
+    # pixbufloader.set_size(min(300, int(w)), min(225, int(h)))
+    pixbufloader.set_size(int(w), int(h))
     try:
         pixbufloader.write(dsobject.metadata['preview'])
         pixbuf = pixbufloader.get_pixbuf()

@@ -88,11 +88,8 @@ TITLEH = 60
 DESCRIPTIONH = 250
 DESCRIPTIONX = 50
 DESCRIPTIONY = 550
-
-XO1 = 'xo1'
-XO15 = 'xo1.5'
-XO175 = 'xo1.75'
-UNKNOWN = 'unknown'
+MAXX = 160
+MAXY = 120
 
 # sprite layers
 DRAG = 6
@@ -102,6 +99,7 @@ UNDRAG = 3
 MIDDLE = 2
 BOTTOM = 1
 HIDE = 0
+
 
 class Slide():
     ''' A container for a slide '''
@@ -197,11 +195,11 @@ class BBoardActivity(activity.Activity):
                 mimetype = ds.metadata['mime_type']
             if mimetype[0:5] == 'image':
                 pixbuf = gtk.gdk.pixbuf_new_from_file_at_size(
-                    ds.file_path, int(PREVIEWW * self._scale),
-                    int(PREVIEWH * self._scale))
+                    ds.file_path, MAXX, MAXY)
+                    # ds.file_path, 300, 225)
                 media_object = True
             else:
-                pixbuf = get_pixbuf_from_journal(ds, 300, 225)
+                pixbuf = get_pixbuf_from_journal(ds, MAXX, MAXY)  # 300, 225)
             if 'description' in ds.metadata:
                 desc = ds.metadata['description']
             else:
@@ -443,7 +441,7 @@ class BBoardActivity(activity.Activity):
         return
 
     def _clear_screen(self):
-        ''' Clear the screen to the darker of the two XO colors. '''
+        ''' Clear the screen to the darker of the two user colors. '''
         self._title.hide()
         self._preview.hide()
         self._description.hide()
@@ -492,7 +490,6 @@ class BBoardActivity(activity.Activity):
         else:
             self._next_button.set_icon('go-next')
 
-        # _logger.debug('Showing slide %d', self.i)
         pixbuf = self.slides[self.i].pixbuf
         if pixbuf is not None:
             self._preview.set_shape(pixbuf.scale_simple(
@@ -552,12 +549,9 @@ class BBoardActivity(activity.Activity):
             x_off = int((self._width - n * w) / 2)
             x = x_off
             y = 0
-            if len(self.slides) > len(self._thumbs):
-                rescale = True
-            else:
-                rescale = False
+            self._thumbs = []
             for i in range(len(self.slides)):
-                self._show_thumb(i, x, y, w, h, rescale)
+                self._show_thumb(i, x, y, w, h)
                 x += w
                 if x + w > self._width:
                     x = x_off
@@ -565,23 +559,19 @@ class BBoardActivity(activity.Activity):
             self.i = 0  # Reset position in slideshow to the beginning
         return False
 
-    def _show_thumb(self, i, x, y, w, h, rescale):
+    def _show_thumb(self, i, x, y, w, h):
         ''' Display a preview image and title as a thumbnail. '''
-        if rescale:
-            pixbuf = self.slides[i].pixbuf
-            if pixbuf is not None:
-                pixbuf_thumb = pixbuf.scale_simple(
-                    int(w), int(h), gtk.gdk.INTERP_TILES)
-            else:
-                pixbuf_thumb = svg_str_to_pixbuf(
-                    genblank(int(w), int(h), self.slides[i].colors))
-        if len(self._thumbs) < i + 1:
-            # Create a Sprite for this thumbnail
-            self._thumbs.append([Sprite(self._sprites, x, y, pixbuf_thumb),
-                                     x, y, i])
-            self._thumbs[i][0].set_label(str(i + 1))
-        elif rescale:
-            self._thumbs[i][0].set_image(pixbuf)
+        pixbuf = self.slides[i].pixbuf
+        if pixbuf is not None:
+            pixbuf_thumb = pixbuf.scale_simple(
+                int(w), int(h), gtk.gdk.INTERP_TILES)
+        else:
+            pixbuf_thumb = svg_str_to_pixbuf(
+                genblank(int(w), int(h), self.slides[i].colors))
+        # Create a Sprite for this thumbnail
+        self._thumbs.append([Sprite(self._sprites, x, y, pixbuf_thumb),
+                             x, y, i])
+        self._thumbs[i][0].set_label(str(i + 1))
         self._thumbs[i][0].set_image(
             svg_str_to_pixbuf(svg_rectangle(int(w), int(h),
                                             self.slides[i].colors)), i=1)
@@ -987,7 +977,7 @@ class BBoardActivity(activity.Activity):
     def _share_slides(self):
         for s in self.slides:
             if s.owner:  # Maybe stagger the timing of the sends?
-                self._send_event('s:' + str(self._dump(s)))
+                gobject.idle_add(self._send_event, 's:' + str(self._dump(s)))
         _logger.debug('finished sharing')
 
     def _send_event(self, text):
