@@ -523,7 +523,7 @@ class BBoardActivity(activity.Activity):
             self._playback_buttons[nick] = button_factory(
                 'xo-chat',  self.record_toolbar,
                 self._playback_recording_cb, cb_arg=nick,
-                tooltip=_('Audio recording from %s' % (nick)))
+                tooltip=_('Audio recording by %s') % (nick))
             xocolor = XoColor('%s,%s' % (colors[0], colors[1]))
             icon = Icon(icon_name='xo-chat', xo_color=xocolor)
             icon.show()
@@ -769,7 +769,7 @@ class BBoardActivity(activity.Activity):
                 dsobject = datastore.create()
             if dsobject is not None:
                 _logger.debug(self.dsobjects[self.i].metadata['title'])
-                dsobject.metadata['title'] = _('audio note for %s') % \
+                dsobject.metadata['title'] = _('Audio recording by %s') % \
                     (self.metadata['title'])
                 dsobject.metadata['icon-color'] = \
                     profile.get_color().to_string()
