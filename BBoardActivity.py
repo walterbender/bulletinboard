@@ -10,7 +10,6 @@
 # along with this library; if not, write to the Free Software
 # Foundation, 51 Franklin Street, Suite 500 Boston, MA 02110-1335 USA
 
-
 import gtk
 import gobject
 import subprocess
@@ -35,6 +34,8 @@ if HAVE_TOOLBOX:
 
 from sugar.datastore import datastore
 from sugar.graphics.alert import Alert
+from sugar.graphics.icon import Icon
+from sugar.graphics.xocolor import XoColor
 
 import telepathy
 from dbus.service import signal
@@ -126,6 +127,7 @@ class BBoardActivity(activity.Activity):
 
         self._playback_buttons = {}
         self._audio_recordings = {}
+        self.colors = profile.get_color().to_string().split(',')
 
         self._setup_toolbars()
         self._setup_canvas()
@@ -166,7 +168,6 @@ class BBoardActivity(activity.Activity):
 
     def _setup_workspace(self):
         ''' Prepare to render the datastore entries. '''
-        self.colors = profile.get_color().to_string().split(',')
 
         # Use the lighter color for the text background
         if lighter_color(self.colors) == 0:
@@ -364,6 +365,7 @@ class BBoardActivity(activity.Activity):
         if dsobject is not None:
             _logger.debug('Found previously recorded audio')
             self._add_playback_button(profile.get_nick_name(),
+                                      self.colors,
                                       dsobject.file_path)
 
         if HAVE_TOOLBOX:
@@ -515,13 +517,18 @@ class BBoardActivity(activity.Activity):
             self._description.set_label('')
             self._description.hide()
 
-    def _add_playback_button(self, nick, audio_file):
+    def _add_playback_button(self, nick, colors, audio_file):
         ''' Add a toolbar button for this audio recording '''
         if nick not in self._playback_buttons:
             self._playback_buttons[nick] = button_factory(
                 'xo-chat',  self.record_toolbar,
                 self._playback_recording_cb, cb_arg=nick,
                 tooltip=_('Audio recording from %s' % (nick)))
+            xocolor = XoColor('%s,%s' % (colors[0], colors[1]))
+            icon = Icon(icon_name='xo-chat', xo_color=xocolor)
+            icon.show()
+            self._playback_buttons[nick].set_icon_widget(icon)
+            self._playback_buttons[nick].show()
         self._audio_recordings[nick] = audio_file
 
     def _slides_cb(self, button=None):
@@ -773,7 +780,7 @@ class BBoardActivity(activity.Activity):
                 datastore.write(dsobject)
                 dsobject.destroy()
             self._add_playback_button(
-                profile.get_nick_name(),
+                profile.get_nick_name(), self.colors,
                 os.path.join(self.datapath, '%s.ogg' % (obj_id)))
             if hasattr(self, 'chattube') and self.chattube is not None:
                 self._share_audio()
@@ -986,7 +993,7 @@ class BBoardActivity(activity.Activity):
             path = os.path.join(activity.get_activity_root(),
                                 'instance', 'nick.ogg')
             base64_to_file(activity, base64, path)
-            self._add_playback_button(nick, path)
+            self._add_playback_button(nick, colors, path)
 
     def _share_audio(self):
         if profile.get_nick_name() in self._audio_recordings:
