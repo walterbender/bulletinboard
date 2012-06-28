@@ -98,11 +98,11 @@ def svg_rectangle(width, height, colors):
     svg.set_colors([colors[1], 'none'])
     width -= 5
     height -= 5
-    svg_string += svg.svg_rect(width, height, 0, 0, 2.5, 2.5)
+    svg_string += svg.rect(width, height, 0, 0, 2.5, 2.5)
     svg.set_colors([colors[0], 'none'])
     width -= 10
     height -= 10
-    svg_string += svg.svg_rect(width, height, 0, 0, 7.5, 7.5)
+    svg_string += svg.rect(width, height, 0, 0, 7.5, 7.5)
     svg_string += svg.footer()
     return svg_string
 
@@ -157,6 +157,15 @@ def get_pixbuf_from_journal(dsobject, w, h):
     return pixbuf
 
 
+def svg_xo_chat(colors):
+    svg = SVG()
+    svg.set_colors(colors)
+    svg_string = svg.header(55, 55, background=False)
+    svg_string += svg.xo_chat()
+    svg_string += svg.footer()
+    return svg_string
+
+
 def genblank(w, h, colors, stroke_width=1.0):
     svg = SVG()
     svg.set_colors(colors)
@@ -181,7 +190,23 @@ class SVG:
                                        self._stroke_width, ";", extras,
                                        "\" />\n")
 
-    def svg_rect(self, w, h, rx, ry, x, y):
+    def xo_chat(self):
+        self.set_stroke_width(3.5)
+        svg_string = '<g transform="translate(1.514,0.358)">\n'
+        svg_string += '<g transform="matrix(0.75,0,0,0.75,-1.156,10.875)">\n'
+        svg_string += '<path d="M33.233,35.1l10.102,10.1c0.752,0.75,1.217,1.783,1.217,2.932   c0,2.287-1.855,4.143-4.146,4.143c-1.145,0-2.178-0.463-2.932-1.211L27.372,40.961l-10.1,10.1c-0.75,0.75-1.787,1.211-2.934,1.211   c-2.284,0-4.143-1.854-4.143-4.141c0-1.146,0.465-2.184,1.212-2.934l10.104-10.102L11.409,24.995   c-0.747-0.748-1.212-1.785-1.212-2.93c0-2.289,1.854-4.146,4.146-4.146c1.143,0,2.18,0.465,2.93,1.214l10.099,10.102l10.102-10.103   c0.754-0.749,1.787-1.214,2.934-1.214c2.289,0,4.146,1.856,4.146,4.145c0,1.146-0.467,2.18-1.217,2.932L33.233,35.1z"\n'
+        svg_string += self._svg_style()
+        svg_string += '<circle cx="27.371" cy="10.849" r="8.122"\n'
+        svg_string += self._svg_style()
+        svg_string += '</g>\n'
+        svg_string += '<g transform="matrix(0.4,0,0,0.4,26.061,0.178)">\n'
+        svg_string += '<path d="m 9.263,48.396 c 0.682,1.152 6.027,0.059 8.246,-1.463 2.102,-1.432 3.207,-2.596 4.336,-2.596 1.133,0 12.54,0.92 20.935,-5.715 C 50.005,32.915 52.553,24.834 47.3,17.185 42.048,9.541 33.468,8.105 26.422,8.625 16.806,9.342 4.224,16.91 4.677,28.313 c 0.264,6.711 3.357,9.143 4.922,10.703 1.562,1.566 4.545,1.566 2.992,5.588 -0.61,1.579 -3.838,2.918 -3.328,3.792 z"\n'
+        svg_string += self._svg_style()
+        svg_string += '</g>\n'
+        svg_string += '</g>\n'
+        return svg_string
+
+    def rect(self, w, h, rx, ry, x, y):
         svg_string = "       <rect\n"
         svg_string += "          width=\"%f\"\n" % (w)
         svg_string += "          height=\"%f\"\n" % (h)
@@ -193,9 +218,8 @@ class SVG:
         svg_string += self._svg_style()
         return svg_string
 
-    def _background(self, w=80, h=60, scale=1):
-        return self.svg_rect((w - 0.5) * scale, (h - 0.5) * scale,
-                             1, 1, 0.25, 0.25)
+    def _background(self, w, h, scale=1):
+        return self.rect((w - 0.5) * scale, (h - 0.5) * scale, 1, 1, 0.25, 0.25)
 
     def header(self, w=80, h=60, scale=1, background=True):
         svg_string = "<?xml version=\"1.0\" encoding=\"UTF-8\""
