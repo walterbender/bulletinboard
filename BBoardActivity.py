@@ -287,6 +287,7 @@ class BBoardActivity(activity.Activity):
                 icon_name='media-audio')
             self.record_toolbar.show_all()
             record_toolbar_button.show()
+            toolbox.toolbar.insert(record_toolbar_button, -1)
         else:
             # Use pre-0.86 toolbar design
             primary_toolbar = gtk.Toolbar()
@@ -307,13 +308,12 @@ class BBoardActivity(activity.Activity):
             'go-next', self.toolbar, self._next_cb,
             tooltip=_('Next slide'), accelerator='<Ctrl>N')
 
-        if HAVE_TOOLBOX:
-            toolbox.toolbar.insert(record_toolbar_button, -1)
+
+        separator_factory(self.toolbar)
 
         slide_button = radio_factory('slide-view', self.toolbar,
                                      self._slides_cb, group=None,
                                      tooltip=_('Slide view'))
-
         radio_factory('thumbs-view', self.toolbar, self._thumbs_cb,
                       tooltip=_('Thumbnail view'),
                       group=slide_button)
@@ -347,11 +347,6 @@ class BBoardActivity(activity.Activity):
 
         self._palette.set_content(msg_box)
 
-        separator_factory(self.toolbar)
-
-        button_factory('system-restart', self.toolbar, self._resend_cb,
-                       tooltip=_('Refresh'))
-
         label_factory(self.record_toolbar, _('Record a sound') + ':')
         self._record_button = button_factory(
             'media-record', self.record_toolbar,
@@ -369,6 +364,8 @@ class BBoardActivity(activity.Activity):
                                       dsobject.file_path)
 
         if HAVE_TOOLBOX:
+            button_factory('system-restart', activity_button_toolbar,
+                           self._resend_cb, tooltip=_('Refresh'))
             separator_factory(activity_button_toolbar)
             self._save_pdf = button_factory(
                 'save-as-pdf', activity_button_toolbar,
