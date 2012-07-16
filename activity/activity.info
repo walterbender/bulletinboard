@@ -1,6 +1,6 @@
 [Activity]
 name = Bulletin Board
-activity_version = 1
+activity_version = 2
 license = GPLv3
 bundle_id = org.sugarlabs.BBoardActivity
 exec = sugar-activity BBoardActivity.BBoardActivity
