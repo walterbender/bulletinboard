@@ -461,6 +461,8 @@ class BBoardActivity(activity.Activity):
 
     def _update_colors(self):
         ''' Match the colors to those of the slide originator. '''
+        if len(self.slides) == 0:
+            return
         self._genblanks(self.slides[self.i].colors)
         self._title.set_image(self._title_pixbuf)
         self._preview.set_image(self._preview_pixbuf)
